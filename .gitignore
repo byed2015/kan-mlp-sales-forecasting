@@ -1,0 +1,80 @@
+# Archivos de Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Entornos virtuales
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Archivos temporales del sistema
+.DS_Store
+Thumbs.db
+*.tmp
+*.temp
+
+# Logs
+*.log
+logs/
+
+# Archivos de configuración del IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# DATOS GRANDES - EXCLUIDOS PARA REPOSITORIO ACADÉMICO
+data/processed/*.csv
+data/processed/*.parquet
+data/raw/*.csv
+
+# Archivos de Windows
+desktop.ini
+*.lnk
+
+# Archivos temporales de Microsoft Office
+~$*
+
+# Archivos de backup
+*~
+*.bak
+*.backup
+
+# Archivos de cache
+.cache/
+.pytest_cache/
+
+# Archivos de coverage
+.coverage
+htmlcov/
+
+# Archivos de mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json

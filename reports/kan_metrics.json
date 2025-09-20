@@ -1,0 +1,19 @@
+{
+  "valid": {
+    "mae": 1624.9735107421875,
+    "rmse": 3220.522473140034,
+    "r2": 0.9787182807922363
+  },
+  "test": {
+    "mae": 1507.547119140625,
+    "rmse": 3163.931257154618,
+    "r2": 0.9790436029434204
+  },
+  "model_type": "simplified_kan",
+  "architecture": "Fast spline KAN with linear interpolation",
+  "n_parameters": 10129,
+  "training_epochs": 23,
+  "best_epoch": 15,
+  "final_lr": 0.0005120000000000001,
+  "training_time_seconds": 1758.3384766578674
+}

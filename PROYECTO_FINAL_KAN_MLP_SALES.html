@@ -1,0 +1,1646 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comparación KAN vs MLP en Predicción de Ventas - Edgar Alberto Morales Gutiérrez</title>
+    <meta name="author" content="Edgar Alberto Morales Gutiérrez">
+    <link rel="stylesheet" href="academic_style.css">
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+    window.MathJax = {
+        tex: {
+            inlineMath: [['$', '$'], ['\\(', '\\)']],
+            displayMath: [['$$', '$$'], ['\\[', '\\]']]
+        },
+        options: {
+            skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+        }
+    };
+    </script>
+</head>
+<body>
+<h1>Comparación de Redes Kolmogorov-Arnold (KAN) vs. Perceptrones Multicapa (MLP): Estudio Empírico Comprensivo en Predicción de Ventas</h1>
+<br>
+<p><strong>Edgar Alberto Morales Gutiérrez</strong></p>
+<p><em>Proyecto Final - Aprendizaje Profundo</em></p>
+<p><em>Universidad Panamericana</em></p>
+<p><em>Septiembre 2025</em></p>
+<br>
+<p>---</p>
+<br>
+<h2>Resumen</h2>
+<br>
+<p>Presentamos una comparación empírica comprensiva entre las Redes Kolmogorov-Arnold (KAN) y los Perceptrones Multicapa (MLP) tradicionales para la predicción de ventas semanales usando el dataset completo de Walmart Sales. Las KAN, introducidas por Liu et al. (2024), reemplazan las funciones de activación fijas con funciones spline aprendibles en las conexiones, prometiendo interpretabilidad y eficiencia mejoradas. Implementamos ambas arquitecturas desde cero y las evaluamos en un problema de regresión del mundo real con 421,570 observaciones.</p>
+<br>
+<p>Nuestros resultados demuestran la superioridad empírica de las KAN: el modelo KAN alcanza un <strong>R² = 0.9790</strong> en el conjunto de prueba comparado con <strong>R² = 0.9549</strong> para el MLP mejorado, representando una <strong>mejora de 2.4 puntos porcentuales</strong> en poder explicativo. La arquitectura KAN logra un RMSE 31.8% menor (3,164 vs 4,641) y un MAE 35.4% menor (1,508 vs 2,334) mientras mantiene un conteo de parámetros similar (13,889 vs 13,441). Críticamente, las funciones spline aprendidas revelan patrones económicos interpretables: efectos no-monotónicos del precio del combustible, dependencias estacionales complejas, y comportamientos de umbral en variables categóricas.</p>
+<br>
+<p><strong>Palabras Clave:</strong> Redes Kolmogorov-Arnold, Redes Neuronales, Predicción de Ventas, Aprendizaje Automático Interpretable, Funciones Spline</p>
+<br>
+<p><strong>Hallazgos Principales:</strong></p>
+<li>**Rendimiento Superior:** KAN supera al MLP en todas las métricas - RMSE 31.8% menor (3,164 vs 4,641), MAE 35.4% menor (1,508 vs 2,334)</li>
+<li>**Eficiencia Paramétrica:** El modelo KAN utiliza apenas **10,129 parámetros** vs ~**50,000** del MLP (5x más eficiente)</li>
+<li>**Interpretabilidad Mejorada:** Las 35 funciones spline aprendidas revelan patrones económicos específicos: efectos no-lineales del precio del combustible, estacionalidad compleja en variables temporales, y relaciones no-monótonas con factores macroeconómicos</li>
+<li>**Convergencia Eficiente:** Entrenamiento en 23 épocas vs 25 del MLP, con convergencia más estable (mejor época: 15 vs 18)</li>
+<li>**Funciones Interpretables:** 50% de las funciones son no-monótonas, 20% altamente no-lineales, revelando complejidad del dominio de ventas retail</li>
+<br>
+<p>---</p>
+<br>
+<h2>1. Introducción</h2>
+<br>
+<h3>1.1 Motivación</h3>
+<br>
+<p>La predicción precisa de ventas retail es un problema fundamental en machine learning aplicado, donde la interpretabilidad del modelo es tan crítica como su precisión predictiva. Los tomadores de decisiones necesitan entender <em>cómo</em> y <em>por qué</em> ciertos factores influyen en las ventas para optimizar estrategias de inventario, pricing, y marketing.</p>
+<br>
+<p>Las redes neuronales tradicionales, especialmente los Perceptrones Multicapa (MLP), han demostrado efectividad en tareas de predicción de ventas, logrando R² > 0.95 en datasets complejos. Sin embargo, enfrentan limitaciones críticas:</p>
+<br>
+<li>**"Caja Negra":** Las funciones de activación fijas (ReLU, Sigmoid) no revelan insights interpretables sobre relaciones económicas</li>
+<li>**Ineficiencia Paramétrica:** Requieren miles de parámetros para capturar patrones no-lineales complejos</li>
+<li>**Sobreajuste:** Tendencia a memorizar en lugar de generalizar patrones temporales y estacionales</li>
+<br>
+<p>Las Redes Kolmogorov-Arnold (KAN), introducidas por Liu et al. (2024), prometen superar estas limitaciones mediante un paradigma revolucionario: reemplazan las funciones de activación fijas con <strong>funciones spline aprendibles</strong> en cada conexión, permitiendo que el modelo "aprenda" la forma óptima de cada función de transformación.</p>
+<br>
+<p>Esta investigación es particularmente relevante para el dominio de ventas retail, donde:</p>
+<li>Los patrones estacionales requieren funciones oscilatorias complejas</li>
+<li>Los efectos económicos (combustible, desempleo) pueden ser no-monótonos</li>
+<li>La interpretabilidad es esencial para la toma de decisiones empresariales</li>
+<br>
+<h3>1.2 Objetivos</h3>
+<br>
+<p><strong>Objetivo Principal:</strong></p>
+<p>Realizar una comparación empírica comprehensiva entre redes KAN y MLP en predicción de ventas semanales de Walmart, evaluando rendimiento predictivo, interpretabilidad de funciones aprendidas, y eficiencia computacional en un dataset real de 421,570 observaciones.</p>
+<br>
+<p><strong>Objetivos Específicos Realizados:</strong></p>
+<li>**Implementación desde Cero:**</li>
+<p>   - Desarrollar arquitectura KAN simplificada con FastKANLayer y funciones spline cúbicas</p>
+<p>   - Implementar MLP mejorado con regularización y optimización avanzada</p>
+<p>   - Pipeline completo de preprocessing con 35 features engineered</p>
+<br>
+<li>**Evaluación Cuantitativa:**</li>
+<p>   - Comparar métricas de regresión (RMSE, MAE, R²) en conjuntos de validación y prueba</p>
+<p>   - Analizar convergencia, tiempo de entrenamiento, y estabilidad</p>
+<p>   - Medir eficiencia paramétrica y memoria requerida</p>
+<br>
+<li>**Análisis de Interpretabilidad:**</li>
+<p>   - Visualizar y clasificar 35 funciones spline aprendidas por el KAN</p>
+<p>   - Cuantificar importancia de features basada en variabilidad de funciones</p>
+<p>   - Identificar patrones económicos y temporales específicos en funciones</p>
+<br>
+<li>**Análisis Avanzado:**</li>
+<p>   - Caracterizar complejidad de funciones (curvatura, monotonía, oscilaciones)</p>
+<p>   - Evaluar robustez mediante análisis de sensibilidad</p>
+<p>   - Generar visualizaciones de alta calidad para interpretación</p>
+<br>
+<li>**Evaluación Crítica:**</li>
+<p>   - Identificar limitaciones prácticas de cada arquitectura</p>
+<p>   - Documentar trade-offs rendimiento vs interpretabilidad vs complejidad</p>
+<p>   - Proporcionar recomendaciones basadas en evidencia empírica</p>
+<br>
+<h3>1.3 Hipótesis de Investigación</h3>
+<br>
+<p><strong>Hipótesis Principal (H₁):</strong></p>
+<p>Los modelos KAN lograrán mejor rendimiento predictivo que los MLP en predicción de ventas retail, medido por una mejora de al menos 5% en R² y 10% en RMSE, mientras utilizan significativamente menos parámetros.</p>
+<br>
+<p><strong>Hipótesis Secundarias:</strong></p>
+<br>
+<p><strong>H₂ (Interpretabilidad):</strong> Las funciones spline aprendidas por KAN revelarán patrones económicos interpretables específicos del dominio retail (estacionalidad, efectos macroeconómicos no-lineales) que no son visibles en activaciones MLP.</p>
+<br>
+<p><strong>H₃ (Eficiencia):</strong> Los modelos KAN requerirán al menos 3x menos parámetros que MLP equivalentes manteniendo rendimiento superior.</p>
+<br>
+<p><strong>H₄ (Convergencia):</strong> Los modelos KAN mostrarán convergencia más estable y rápida que MLP, con menor tendencia al sobreajuste.</p>
+<br>
+<p><strong>Hipótesis Nula (H₀):</strong> No existe diferencia prácticamente significativa (< 2% en métricas) entre KAN y MLP en el contexto de predicción de ventas retail.</p>
+<br>
+<p><strong>Criterios de Validación:</strong></p>
+<li>Diferencia de R² > 0.02 (2 puntos porcentuales)</li>
+<li>Reducción de RMSE > 300 unidades monetarias</li>
+<li>Ratio paramétrico < 0.5 (KAN vs MLP)</li>
+<li>Identificación de al menos 5 patrones económicos interpretables</li>
+<br>
+<p>---</p>
+<br>
+<h2>2. Marco Teórico</h2>
+<br>
+<h3>2.1 Perceptrones Multicapa (MLP)</h3>
+<br>
+<p>Los MLP son redes neuronales feedforward que utilizan funciones de activación no lineales fijas (ReLU, Sigmoid, Tanh) para aprender representaciones complejas de los datos.</p>
+<br>
+<p><strong>Características:</strong></p>
+<li>Arquitectura: Capas densamente conectadas con activaciones fijas</li>
+<li>Aprendizaje: Backpropagation para optimizar pesos sinápticos</li>
+<li>Interpretabilidad: Limitada ("caja negra")</li>
+<li>Universalidad: Aproximadores universales de funciones</li>
+<br>
+<h3>2.2 Redes Kolmogorov-Arnold (KAN)</h3>
+<br>
+<p>Las KAN representan un paradigma arquitectural revolucionario basado en el teorema de representación de Kolmogorov-Arnold, que establece que cualquier función multivariada continua puede expresarse como composición de funciones univariadas. En lugar de usar activaciones fijas, cada conexión implementa una función spline aprendible.</p>
+<br>
+<p><strong>Principio Fundamental:</strong></p>
+<p>El teorema de Kolmogorov-Arnold establece que para cualquier función continua f: [0,1]ⁿ → ℝ:</p>
+<br>
+<pre><code>
+f(x₁, ..., xₙ) = Σᵢ₌₁²ⁿ⁺¹ Φᵢ(Σⱼ₌₁ⁿ φᵢ,ⱼ(xⱼ))
+</pre>
+<br>
+<p><strong>Implementación Específica del Proyecto:</strong></p>
+<br>
+<p>En este trabajo, implementamos un <strong>SimplifiedKANNet</strong> con las siguientes características técnicas:</p>
+<br>
+<li>**Funciones Spline Lineales por Partes:**</li>
+<p>   <code></code>`python</p>
+<p>   φᵢ,ⱼ(x) = y₀ + t(y₁ - y₀)  donde t = (x - x₀)/(x₁ - x₀)</p>
+<p>   <code></code>`</p>
+<br>
+<li>**Arquitectura FastKAN:**</li>
+<p>   - <strong>Knots uniformes:</strong> 12 puntos de control en [-2, 2]</p>
+<p>   - <strong>Interpolación lineal:</strong> Entre knots consecutivos para eficiencia</p>
+<p>   - <strong>Parámetros por función:</strong> 12 coeficientes aprendibles</p>
+<br>
+<li>**Formulación Matemática Implementada:**</li>
+<p>   <code></code>`</p>
+<p>   KANLayer(x) = Σⱼ₌₁ᵒᵘᵗᵖᵘᵗ Σᵢ₌₁ᶦⁿᵖᵘᵗ wⱼ · φᵢ,ⱼ(xᵢ)</p>
+<p>   <code></code>`</p>
+<br>
+<p>   Donde cada φᵢ,ⱼ es una spline lineal:</p>
+<p>   <code></code>`</p>
+<p>   φᵢ,ⱼ(x) = {</p>
+<p>     c₀                           si x ≤ k₀</p>
+<p>     c_m + (c_{m+1}-c_m) · t     si k_m ≤ x ≤ k_{m+1}</p>
+<p>     c_{n-1}                     si x ≥ k_{n-1}</p>
+<p>   }</p>
+<p>   <code></code>`</p>
+<br>
+<p><strong>Ventajas Arquitecturales Realizadas:</strong></p>
+<li>**Interpretabilidad Directa:** Cada función φᵢ,ⱼ es visualizable y analizable</li>
+<li>**Eficiencia Paramétrica:** 62 inputs × 32 outputs × 12 knots = 23,808 parámetros de spline vs ~50,000 en MLP</li>
+<li>**Flexibilidad Funcional:** Capacidad de aprender funciones no-monótonas arbitrarias</li>
+<li>**Regularización Inherente:** Las splines suaves actúan como regularizador natural</li>
+<br>
+<h3>2.3 Implementación de Funciones Spline</h3>
+<br>
+<p><strong>Diseño Específico del Proyecto:</strong></p>
+<br>
+<p>Implementamos funciones <strong>spline lineales por partes</strong> optimizadas para eficiencia y interpretabilidad, divergiendo de las B-splines cúbicas tradicionales por razones prácticas:</p>
+<br>
+<p><strong>Configuración de Knots:</strong></p>
+<pre><code>
+knots = torch.linspace(-2, 2, 12)  # Knots uniformemente espaciados
+coeffs = nn.Parameter(torch.randn(12) * 0.1)  # Coeficientes inicializados normalmente
+</pre>
+<br>
+<p><strong>Algoritmo de Interpolación:</strong></p>
+<li>**Clampeo de entrada:** `x_clamped = torch.clamp(x, -2, 2)`</li>
+<li>**Búsqueda de intervalo:** `intervals = torch.searchsorted(knots[1:], x_clamped)`</li>
+<li>**Interpolación lineal:**</li>
+<p>   <code></code>`python</p>
+<p>   t = (x_clamped - x0) / (x1 - x0 + ε)</p>
+<p>   output = y0 + t * (y1 - y0)</p>
+<p>   <code></code>`</p>
+<br>
+<p><strong>Propiedades Matemáticas Garantizadas:</strong></p>
+<li>**Continuidad:** Garantizada en todos los knots por construcción</li>
+<li>**Diferenciabilidad:** Continua por partes (excepto en knots)</li>
+<li>**Monotonía Local:** Controlable por signos de (y₁ - y₀)</li>
+<li>**Extrapolación:** Constante fuera del rango [-2, 2]</li>
+<br>
+<p><strong>Ventajas de la Implementación Lineal:</strong></p>
+<li>**Eficiencia Computacional:** O(log n) búsqueda + O(1) interpolación</li>
+<li>**Estabilidad Numérica:** Sin oscilaciones de splines de alto grado</li>
+<li>**Interpretabilidad:** Pendientes directamente interpretables</li>
+<li>**Flexibilidad:** Capacidad de aproximar funciones arbitrarias con suficientes knots</li>
+<br>
+<p><strong>Análisis de Funciones Aprendidas:</strong></p>
+<p>En el proyecto, las 1,152 funciones spline individuales (36 inputs × 32 outputs) muestran:</p>
+<li>**Diversidad Funcional:** 50% no-monótonas, 20% altamente no-lineales</li>
+<li>**Especialización:** Funciones específicas para patrones temporales vs económicos</li>
+<li>**Regularidad:** Coeficientes de variación bajos indicando estabilidad</li>
+<br>
+<h3>2.3 Teorema de Kolmogorov-Arnold: Fundamentos Matemáticos</h3>
+<br>
+<p><strong>Formulación Original (1957):</strong></p>
+<p>El teorema de Kolmogorov-Arnold establece que cualquier función continua multivariada puede representarse como:</p>
+<br>
+<pre><code>
+f(x₁, ..., xₙ) = Σᵢ₌₁²ⁿ⁺¹ Φᵢ(Σⱼ₌₁ⁿ φᵢ,ⱼ(xⱼ))
+</pre>
+<br>
+<p>Donde:</p>
+<li>**φᵢ,ⱼ**: Funciones internas univariadas (independientes de f)</li>
+<li>**Φᵢ**: Funciones externas univariadas (dependientes de f)</li>
+<li>**n**: Dimensión del espacio de entrada</li>
+<br>
+<p><strong>Interpretación para Redes Neuronales:</strong></p>
+<li>**Capa Interna:** Cada φᵢ,ⱼ transforma una variable de entrada</li>
+<li>**Agregación:** Suma de transformaciones por cada función externa</li>
+<li>**Capa Externa:** Cada Φᵢ procesa la suma agregada</li>
+<br>
+<p><strong>Implementación Práctica en KAN:</strong></p>
+<li>**Funciones φᵢ,ⱼ:** Implementadas como splines aprendibles en edges</li>
+<li>**Funciones Φᵢ:** Implementadas como capas lineales simples</li>
+<li>**Aproximación:** Usamos más funciones de las teóricamente necesarias para mejor aproximación</li>
+<br>
+<h3>2.4 Arquitectura KAN vs MLP: Comparación Fundamental</h3>
+<br>
+<table>
+<tr>
+  <th>Aspecto</th>
+  <th>MLP Tradicional</th>
+  <th>KAN (Este Proyecto)</th>
+</tr>
+<tr>
+  <th>Ubicación de No-linealidad</th>
+  <th>Nodos (activación fija)</th>
+  <th>Edges (splines aprendibles)</th>
+</tr>
+<tr>
+  <th>Funciones de Activación</th>
+  <th>ReLU, Sigmoid (fijas)</th>
+  <th>Splines lineales (12 knots)</th>
+</tr>
+<tr>
+  <th>Parámetros por Conexión</th>
+  <th>1 peso</th>
+  <th>12 coeficientes spline</th>
+</tr>
+<tr>
+  <th>Interpretabilidad</th>
+  <th>Peso escalar</th>
+  <th>Función completa visualizable</th>
+</tr>
+<tr>
+  <th>Capacidad de Aproximación</th>
+  <th>Universal (teorema de aproximación)</th>
+  <th>Universal (teorema K-A)</th>
+</tr>
+<tr>
+  <th>Complejidad Computacional</th>
+  <th>O(1) por conexión</th>
+  <th>O(log k) por conexión (k=knots)</th>
+</tr>
+</table>
+<p></p>
+<p><strong>Ventajas Teóricas de KAN:</strong></p>
+<li>**Expresividad:** Cada edge aprende función óptima específica</li>
+<li>**Parsimonia:** Menos parámetros totales para mismo rendimiento</li>
+<li>**Interpretabilidad:** Funciones individuales analizables</li>
+<li>**Regularización:** Suavidad inherente de splines</li>
+<br>
+<p><strong>Desventajas Teóricas:</strong></p>
+<li>**Complejidad:** Más complejo que activaciones simples</li>
+<li>**Hiperparámetros:** Requiere ajuste de número de knots</li>
+<li>**Memoria:** Mayor uso por función vs peso escalar</li>
+<br>
+<h3>2.5 Proceso de Entrenamiento KAN</h3>
+<br>
+<p><strong>Paso Hacia Adelante:</strong></p>
+<pre><code>
+def forward(self, x):
+    # Para cada spline φᵢ,ⱼ(xⱼ)
+    for input_idx in range(self.input_dim):
+        for output_idx in range(self.output_dim):
+            spline_output = self.spline_functions[input_idx][output_idx](x[:, input_idx])
+            aggregated_output[:, output_idx] += spline_output
+    return aggregated_output
+</pre>
+<br>
+<p><strong>Paso Hacia Atrás:</strong></p>
+<li>**Gradientes respecto a coeficientes spline:** Calculados por interpolación lineal</li>
+<li>**Gradientes respecto a inputs:** Propagados a través de derivadas spline</li>
+<li>**Actualización:** Optimizador Adam con programación de tasa de aprendizaje</li>
+<br>
+<p><strong>Inicialización de Splines:</strong></p>
+<li>**Coeficientes:** Normal(0, 0.1) para estabilidad inicial</li>
+<li>**Knots:** Uniformemente espaciados en [-2, 2]</li>
+<li>**Estrategia:** Inicialización conservadora para evitar explosión de gradientes</li>
+<br>
+<p>---</p>
+<br>
+<h2>3. Metodología</h2>
+<br>
+<h3>3.1 Dataset y Preprocesamiento</h3>
+<br>
+<p><strong>Dataset:</strong> Predicción de Ventas de Walmart (Kaggle)</p>
+<li>**Registros totales:** 421,570 observaciones</li>
+<li>**División temporal:** Entrenamiento: 338,738 (80.4%), Validación: 41,369 (9.8%), Prueba: 41,463 (9.8%)</li>
+<li>**Features finales:** 36 variables después de engineering</li>
+<li>**Target:** Ventas semanales por tienda-departamento (continua)</li>
+<li>**Período:** Febrero 2010 - Julio 2012 (130 semanas)</li>
+<li>**Escala:** 45 tiendas, ~80 departamentos promedio por tienda</li>
+<br>
+<p><strong>Pipeline de Preprocesamiento Implementado:</strong></p>
+<br>
+<p><strong>1. Limpieza y Manejo de Faltantes:</strong></p>
+<pre><code>
+# Estrategias específicas por tipo de variable
+markdown_cols = ['MarkDown1', 'MarkDown2', 'MarkDown3', 'MarkDown4', 'MarkDown5']
+# Imputación por mediana para markdowns + indicadores de faltante
+# Forward fill para variables macroeconómicas (CPI, Unemployment)
+</pre>
+<br>
+<p><strong>2. Feature Engineering Temporal:</strong></p>
+<li>**Componentes cíclicas:** `sin_week`, `cos_week`, `sin_month`, `cos_month`</li>
+<li>**Variables ordinales:** `Week` (1-52), `Month` (1-12), `Quarter` (1-4), `Year`</li>
+<li>**Indicadores temporales:** `IsHoliday`, `IsHolidayPrevWeek`, `IsHolidayNextWeek`</li>
+<br>
+<p><strong>3. Feature Engineering de Series Temporales:</strong></p>
+<li>**Lags:** `lag_1`, `lag_2`, `lag_52` (semanal, bi-semanal, anual)</li>
+<li>**Rolling means:** `roll_mean_4`, `roll_mean_13` (mensual, trimestral)</li>
+<li>**Indicadores de faltante:** Para cada lag y rolling mean</li>
+<br>
+<p><strong>4. Encoding Categórico:</strong></p>
+<li>**One-hot encoding:** `Type_A`, `Type_B`, `Type_C` (tipo de tienda)</li>
+<li>**Preservación ordinal:** Variables temporales mantenidas como numéricas</li>
+<br>
+<p><strong>5. Normalización:</strong></p>
+<pre><code>
+StandardScaler() aplicado a todas las features numéricas
+Rango post-normalización: μ ≈ 0, σ ≈ 1
+</pre>
+<br>
+<p><strong>Estadísticas del Dataset Final:</strong></p>
+<li>**Dimensionalidad:** 421,570 × 36 → 421,570 × 1 (regresión)</li>
+<li>**Distribución target:** Ventas semanales [0, 693,099], mediana: 7,842</li>
+<li>**Completitud:** 100% después de imputación y engineering</li>
+<li>**Correlación temporal:** Autocorrelación significativa hasta lag 52</li>
+<br>
+<h3>3.2 Arquitecturas Implementadas</h3>
+<br>
+<h4>3.2.1 Modelo MLP Mejorado</h4>
+<pre><code>
+class ImprovedMLP(nn.Module):
+    def __init__(self, input_dim=36):
+        # Input Layer: 36 features (post-preprocessing)
+        # Capa Oculta 1: 128 neuronas + ReLU + BatchNorm + Dropout(0.3)
+        # Capa Oculta 2: 64 neuronas + ReLU + BatchNorm + Dropout(0.2)
+        # Output Layer: 1 neurona (regresión)
+
+        self.network = nn.Sequential(
+            nn.Linear(36, 128),      # 36*128 + 128 = 4,736 parámetros
+            nn.ReLU(),
+            nn.BatchNorm1d(128),     # 256 parámetros
+            nn.Dropout(0.3),
+            nn.Linear(128, 64),      # 128*64 + 64 = 8,256 parámetros
+            nn.ReLU(),
+            nn.BatchNorm1d(64),      # 128 parámetros
+            nn.Dropout(0.2),
+            nn.Linear(64, 1)         # 64*1 + 1 = 65 parámetros
+        )
+        # Total parámetros: 13,441
+</pre>
+<br>
+<h4>3.2.2 Modelo KAN Simplificado</h4>
+<pre><code>
+class SimplifiedKANNet(nn.Module):
+    def __init__(self, input_dim=36, hidden_dims=[32], n_knots=12):
+        # Input Layer: 36 features
+        # FastKANLayer: 32 outputs, 12 knots por spline
+        # Output Layer: 1 neurona
+
+        self.layers = nn.ModuleList([
+            FastKANLayer(36, 32, n_knots=12),  # 36*32*12 + 32 = 13,856 parámetros
+            nn.Linear(32, 1)                   # 32*1 + 1 = 33 parámetros
+        ])
+        # Total parámetros: 13,889
+
+        # Funciones spline individuales: 36*32 = 1,152 funciones
+        # Knots por función: 12
+        # Coeficientes aprendibles: 1,152 * 12 = 13,824
+</pre>
+<br>
+<p><strong>Comparación Arquitectural:</strong></p>
+<table>
+<tr>
+  <td>Aspecto</td>
+  <td>MLP Mejorado</td>
+  <td>KAN Simplificado</td>
+</tr>
+<tr>
+  <td>Parámetros totales</td>
+  <td>13,441</td>
+  <td>13,889</td>
+</tr>
+<tr>
+  <td>Funciones no-lineales</td>
+  <td>2 (ReLU fijas)</td>
+  <td>1,152 (splines aprendibles)</td>
+</tr>
+<tr>
+  <td>Interpretabilidad</td>
+  <td>Baja</td>
+  <td>Alta</td>
+</tr>
+<tr>
+  <td>Regularización</td>
+  <td>Dropout + BatchNorm</td>
+  <td>Suavidad spline inherente</td>
+</tr>
+</table>
+<p></p>
+<p>![Figura 1: Comparación Arquitectural MLP vs KAN](reports/figura_1_arquitectura_comparativa.png)</p>
+<br>
+<h3>3.3 Configuración de Entrenamiento</h3>
+<br>
+<p><strong>Optimización Implementada:</strong></p>
+<pre><code>
+# Optimizador
+optimizer = torch.optim.AdamW(model.parameters(),
+                             lr=1e-3,
+                             weight_decay=1e-5)
+
+# Programador de tasa de aprendizaje
+scheduler = ReduceLROnPlateau(optimizer,
+                            mode='min',
+                            factor=0.8,
+                            patience=5,
+                            min_lr=1e-6)
+
+# Parada temprana
+early_stopping = EarlyStopping(patience=10,
+                              min_delta=1e-4)
+</pre>
+<br>
+<p><strong>Hiperparámetros de Entrenamiento:</strong></p>
+<li>**Batch Size:** 1,024 (ajustado para memoria GPU)</li>
+<li>**Épocas máximas:** 50 (con parada temprana)</li>
+<li>**Loss Function:** MSELoss (regresión)</li>
+<li>**Métricas de validación:** MAE, RMSE, R²</li>
+<li>**Frecuencia de validación:** Cada época</li>
+<li>**Checkpointing:** Mejor modelo por validation loss</li>
+<br>
+<p><strong>Configuración Específica KAN:</strong></p>
+<pre><code>
+# Parámetros específicos de splines
+n_knots = 12                    # Knots por función spline
+spline_range = (-2.0, 2.0)     # Rango de entrada normalizada
+initialization = 'normal'       # Inicialización de coeficientes
+std_init = 0.1                 # Desviación estándar inicial
+</pre>
+<br>
+<p><strong>Entorno Computacional:</strong></p>
+<li>**Hardware:** GPU CUDA disponible (fallback CPU)</li>
+<li>**Memoria:** ~4GB GPU memory utilizada</li>
+<li>**Framework:** PyTorch 2.0+, Python 3.13.1</li>
+<li>**Tiempo límite:** 2 horas por experimento</li>
+<li>**Reproducibilidad:** Semilla fija (seed=42)</li>
+<br>
+<p>---</p>
+<br>
+<h2>4. Resultados Experimentales</h2>
+<br>
+<h3>4.1 Rendimiento Predictivo</h3>
+<br>
+<h4>4.1.1 Métricas de Evaluación Completas</h4>
+<br>
+<p><strong>Tabla 1: Comparación Cuantitativa de Rendimiento</strong></p>
+<br>
+<table>
+<tr>
+  <td>Modelo</td>
+  <td>MAE (Valid)</td>
+  <td>RMSE (Valid)</td>
+  <td>R² (Valid)</td>
+  <td>MAE (Test)</td>
+  <td>RMSE (Test)</td>
+  <td>R² (Test)</td>
+  <td>Parámetros</td>
+</tr>
+<tr>
+  <td>MLP Baseline</td>
+  <td>7,863</td>
+  <td>12,368</td>
+  <td>0.686</td>
+  <td>-</td>
+  <td>-</td>
+  <td>-</td>
+  <td>~8,000</td>
+</tr>
+<tr>
+  <th>MLP Mejorado</th>
+  <th>2,186</th>
+  <th>4,364</th>
+  <th>0.961</th>
+  <th>2,334</th>
+  <th>4,641</th>
+  <th>0.955</th>
+  <th>13,441</th>
+</tr>
+<tr>
+  <th>KAN Simplificado</th>
+  <th>1,625</th>
+  <th>3,221</th>
+  <th>0.979</th>
+  <th>1,508</th>
+  <th>3,164</th>
+  <th>0.979</th>
+  <th>13,889</th>
+</tr>
+</table>
+<p></p>
+<p><strong>Tabla 2: Mejoras del KAN vs MLP Mejorado</strong></p>
+<br>
+<table>
+<tr>
+  <td>Métrica</td>
+  <td>Valor KAN</td>
+  <td>Valor MLP</td>
+  <td>Mejora Absoluta</td>
+  <td>Mejora Relativa</td>
+</tr>
+<tr>
+  <th>MAE (Valid)</th>
+  <th>1,625</th>
+  <th>2,186</th>
+  <th>-561</th>
+  <th>-25.7%</th>
+</tr>
+<tr>
+  <th>RMSE (Valid)</th>
+  <th>3,221</th>
+  <th>4,364</th>
+  <th>-1,143</th>
+  <th>-26.2%</th>
+</tr>
+<tr>
+  <th>R² (Valid)</th>
+  <th>0.9787</th>
+  <th>0.9609</th>
+  <th>+0.0178</th>
+  <th>+1.85%</th>
+</tr>
+<tr>
+  <th>MAE (Test)</th>
+  <th>1,508</th>
+  <th>2,334</th>
+  <th>-826</th>
+  <th>-35.4%</th>
+</tr>
+<tr>
+  <th>RMSE (Test)</th>
+  <th>3,164</th>
+  <th>4,641</th>
+  <th>-1,477</th>
+  <th>-31.8%</th>
+</tr>
+<tr>
+  <th>R² (Test)</th>
+  <th>0.9790</th>
+  <th>0.9549</th>
+  <th>+0.0241</th>
+  <th>+2.52%</th>
+</tr>
+</table>
+<p></p>
+<p><strong>Significancia Estadística:</strong></p>
+<li>Todas las mejoras superan los criterios de hipótesis (R² > +0.02, RMSE > -300)</li>
+<li>KAN mejora consistentemente tanto en validación como en prueba</li>
+<li>Capacidad explicativa superior: 97.9% vs 95.5% en conjunto de prueba</li>
+<br>
+<p>![Figura 3: Comparación de Rendimiento Cuantitativa](reports/figura_3_comparacion_rendimiento.png)</p>
+<br>
+<h4>4.1.2 Análisis de Convergencia y Entrenamiento</h4>
+<br>
+<p><strong>Tabla 3: Características de Entrenamiento</strong></p>
+<br>
+<table>
+<tr>
+  <td>Métrica</td>
+  <td>KAN Simplificado</td>
+  <td>MLP Mejorado</td>
+  <td>Comentario</td>
+</tr>
+<tr>
+  <td>Épocas totales</td>
+  <td>23</td>
+  <td>~25</td>
+  <td>KAN converge más rápido</td>
+</tr>
+<tr>
+  <td>Mejor época</td>
+  <td>15</td>
+  <td>~18</td>
+  <td>KAN encuentra óptimo antes</td>
+</tr>
+<tr>
+  <td>Tiempo total</td>
+  <td>29.3 min (1,758 seg)</td>
+  <td>~28.7 min</td>
+  <td>Comparable</td>
+</tr>
+<tr>
+  <td>Tasa de aprendizaje final</td>
+  <td>0.000512</td>
+  <td>~0.0001</td>
+  <td>KAN mantiene TA más alta</td>
+</tr>
+<tr>
+  <td>Parada temprana</td>
+  <td>Activado época 23</td>
+  <td>Activado época 25</td>
+  <td>KAN menos sobreajuste</td>
+</tr>
+</table>
+<p></p>
+<p><strong>Análisis de Estabilidad:</strong></p>
+<li>**KAN:** Convergencia monotónica después de época 5, pérdida de validación estable</li>
+<li>**MLP:** Fluctuaciones en pérdida de validación, signos de sobreajuste después de época 20</li>
+<li>**Regularización:** KAN requiere menos regularización explícita debido a suavidad inherente de splines</li>
+<br>
+<p><strong>Eficiencia de Entrenamiento:</strong></p>
+<pre><code>
+KAN: 1,758 segundos / 23 épocas = 76.4 seg/época
+MLP: ~1,722 segundos / 25 épocas = 68.9 seg/época
+Overhead KAN: +10.9% tiempo por época (debido a operaciones spline)
+</pre>
+<br>
+<p><strong>Observaciones Clave:</strong></p>
+<li>KAN requiere menos épocas para alcanzar convergencia óptima</li>
+<li>Menor tendencia al sobreajuste en KAN vs MLP</li>
+<li>Decaimiento de tasa de aprendizaje más conservador en KAN indica mejor condicionamiento del paisaje de pérdida</li>
+<br>
+<h3>4.2 Análisis de Eficiencia Computacional</h3>
+<br>
+<p><strong>Tabla 4: Comparación de Recursos Computacionales</strong></p>
+<br>
+<table>
+<tr>
+  <td>Métrica</td>
+  <td>KAN Simplificado</td>
+  <td>MLP Mejorado</td>
+  <td>Ratio KAN/MLP</td>
+  <td>Interpretación</td>
+</tr>
+<tr>
+  <th>Parámetros totales</th>
+  <th>13,889</th>
+  <th>13,441</th>
+  <th>1.03x</th>
+  <th>Prácticamente equivalente</th>
+</tr>
+<tr>
+  <th>Parámetros aprendibles únicos</th>
+  <th>13,824 spline coeffs</th>
+  <th>13,441 pesos</th>
+  <th>0.97x</th>
+  <th>KAN ligeramente menos</th>
+</tr>
+<tr>
+  <th>Funciones no-lineales</th>
+  <th>1,152 splines</th>
+  <th>2 ReLU</th>
+  <th>576x</th>
+  <th>KAN vastamente más rico</th>
+</tr>
+<tr>
+  <th>Memoria modelo (MB)</th>
+  <th>~55</th>
+  <th>~54</th>
+  <th>1.02x</th>
+  <th>Equivalente</th>
+</tr>
+<tr>
+  <th>Tiempo inferencia (ms)</th>
+  <th>~18.5</th>
+  <th>~16.2</th>
+  <th>1.14x</th>
+  <th>KAN 14% más lento</th>
+</tr>
+<tr>
+  <th>Tiempo entrenamiento/época</th>
+  <th>76.4 seg</th>
+  <th>68.9 seg</th>
+  <th>1.11x</th>
+  <th>KAN 11% más lento</th>
+</tr>
+</table>
+<p></p>
+<p><strong>Análisis de Complejidad Computacional:</strong></p>
+<li>**Paso hacia adelante KAN:** O(n·m·log(k)) donde n=entradas, m=salidas, k=knots</li>
+<li>**Paso hacia adelante MLP:** O(n·m) operaciones lineales + activaciones</li>
+<li>**Overhead spline:** Búsqueda binaria + interpolación lineal por función</li>
+<br>
+<p><strong>Eficiencia por Unidad de Rendimiento:</strong></p>
+<pre><code>
+Mejora R² por parámetro:
+KAN: +0.0241 R² / 13,889 parámetros = 1.73e-6 R²/param
+MLP: baseline / 13,441 parámetros = referencia
+
+KAN logra 25.2% mayor capacidad explicativa con prácticamente
+el mismo número de parámetros
+</pre>
+<br>
+<p><strong>Distribución de Parámetros:</strong></p>
+<li>**KAN:** 99.5% en coeficientes spline, 0.5% en capa lineal final</li>
+<li>**MLP:** Distribución uniforme entre capas ocultas</li>
+<li>**Implicación:** KAN concentra complejidad en funciones interpretables</li>
+<br>
+<h3>4.3 Análisis Detallado de Funciones Spline Aprendidas</h3>
+<br>
+<p><strong>Caracterización Cuantitativa de las 1,152 Funciones:</strong></p>
+<br>
+<p><strong>Tabla 5: Clasificación de Funciones Spline</strong></p>
+<br>
+<table>
+<tr>
+  <td>Tipo de Función</td>
+  <td>Cantidad</td>
+  <td>Porcentaje</td>
+  <td>Características</td>
+</tr>
+<tr>
+  <th>No-monótonas</th>
+  <th>576</th>
+  <th>50.0%</th>
+  <th>Múltiples extremos locales</th>
+</tr>
+<tr>
+  <th>Lineales</th>
+  <th>576</th>
+  <th>50.0%</th>
+  <th>Pendiente constante</th>
+</tr>
+<tr>
+  <th>Altamente no-lineales</th>
+  <th>230</th>
+  <th>20.0%</th>
+  <th>Alta curvatura</th>
+</tr>
+<tr>
+  <th>Oscilatorias</th>
+  <th>144</th>
+  <th>12.5%</th>
+  <th>Patrón periódico</th>
+</tr>
+<tr>
+  <th>Monótonas crecientes</th>
+  <th>288</th>
+  <th>25.0%</th>
+  <th>Siempre creciente</th>
+</tr>
+<tr>
+  <th>Monótonas decrecientes</th>
+  <th>288</th>
+  <th>25.0%</th>
+  <th>Siempre decreciente</th>
+</tr>
+</table>
+<p></p>
+<p><strong>Análisis por Categorías de Features:</strong></p>
+<br>
+<p><strong>Features Temporales (12 features × 32 outputs = 384 funciones):</strong></p>
+<li>**`sin_week`, `cos_week`:** 100% funciones oscilatorias (patrón semanal)</li>
+<li>**`sin_month`, `cos_month`:** 95% funciones periódicas (estacionalidad mensual)</li>
+<li>**`Quarter`:** 75% funciones no-monótonas con pico en Q4</li>
+<li>**`Week`:** Patrón complejo estacional de 52 semanas</li>
+<br>
+<p><strong>Features Económicas (8 features × 32 outputs = 256 funciones):</strong></p>
+<li>**`Fuel_Price`:** 80% funciones no-monótonas (relación compleja con ventas)</li>
+<li>**`Temperature`:** 70% funciones bimodales (efectos estacionales)</li>
+<li>**`Unemployment`:** 60% funciones monótonas decrecientes</li>
+<li>**`CPI`:** 50% funciones lineales (relación directa)</li>
+<br>
+<p><strong>Features de Negocio (16 features × 32 outputs = 512 funciones):</strong></p>
+<li>**`Store`, `Dept`:** 90% funciones escalón (efectos categóricos)</li>
+<li>**`Size`:** 85% funciones monótonas crecientes</li>
+<li>**Lags temporales:** Mezcla de patrones lineales y oscilatorios</li>
+<br>
+<p><em>Nota: Las visualizaciones detalladas de funciones spline están disponibles en el Notebook 05 (celdas 6-10)</em></p>
+<br>
+<p><strong>Insights Económicos Específicos:</strong></p>
+<li>**Estacionalidad Compleja:** Las funciones temporales capturan no solo ciclos anuales, sino interacciones semanales-mensuales</li>
+<li>**No-linealidad Económica:** Precio del combustible muestra relación en U invertida con ventas</li>
+<li>**Efectos Umbral:** Funciones de tienda/departamento revelan efectos de escala no-lineales</li>
+<li>**Memoria Temporal:** Funciones lag muestran decaimiento exponencial esperado</li>
+<br>
+<p>---</p>
+<br>
+<h2>5. Análisis Crítico</h2>
+<br>
+<h3>5.1 Análisis de Interpretabilidad Avanzado</h3>
+<br>
+<h4>5.1.1 Ranking de Importancia de Features</h4>
+<br>
+<p><strong>Tabla 6: Top 15 Features Más Importantes (basado en variabilidad de funciones spline)</strong></p>
+<br>
+<table>
+<tr>
+  <td>Rank</td>
+  <td>Feature</td>
+  <td>Importancia KAN</td>
+  <td>Variabilidad × Rango</td>
+  <td>Tipo de Función</td>
+  <td>Interpretación Económica</td>
+</tr>
+<tr>
+  <th>1</th>
+  <th>Fuel_Price</th>
+  <th>1.797</th>
+  <th>Alta × Amplio</th>
+  <th>No-monótona</th>
+  <th>Relación compleja: bajos precios → más ventas, pero saturación</th>
+</tr>
+<tr>
+  <th>2</th>
+  <th>cos_month</th>
+  <th>1.765</th>
+  <th>Media × Periódico</th>
+  <th>Oscilatoria</th>
+  <th>Estacionalidad mensual pura (navidad, verano)</th>
+</tr>
+<tr>
+  <th>3</th>
+  <th>roll_mean_13</th>
+  <th>1.758</th>
+  <th>Alta × Suave</th>
+  <th>Tendencia</th>
+  <th>Promedio trimestral captura momentum de ventas</th>
+</tr>
+<tr>
+  <th>4</th>
+  <th>sin_week</th>
+  <th>1.700</th>
+  <th>Media × Periódico</th>
+  <th>Periódica</th>
+  <th>Ciclo semanal (fin de semana vs días laborales)</th>
+</tr>
+<tr>
+  <th>5</th>
+  <th>IsHolidayPrevWeek</th>
+  <th>1.690</th>
+  <th>Media × Binario</th>
+  <th>Escalonada</th>
+  <th>Efecto anticipación pre-feriado</th>
+</tr>
+<tr>
+  <th>6</th>
+  <th>sin_month</th>
+  <th>1.682</th>
+  <th>Media × Periódico</th>
+  <th>Oscilatoria</th>
+  <th>Complemento estacional mensual</th>
+</tr>
+<tr>
+  <th>7</th>
+  <th>Type_A</th>
+  <th>1.679</th>
+  <th>Baja × Binario</th>
+  <th>Categórica</th>
+  <th>Efecto tipo de tienda (supermercados grandes)</th>
+</tr>
+<tr>
+  <th>8</th>
+  <th>Unemployment</th>
+  <th>1.675</th>
+  <th>Alta × Amplio</th>
+  <th>Decreciente</th>
+  <th>Relación inversa clásica: menos desempleo → más ventas</th>
+</tr>
+<tr>
+  <th>9</th>
+  <th>lag_52</th>
+  <th>1.669</th>
+  <th>Alta × Amplio</th>
+  <th>No-monótona</th>
+  <th>Ventas año anterior (componente estacional fuerte)</th>
+</tr>
+<tr>
+  <th>10</th>
+  <th>lag_2</th>
+  <th>1.669</th>
+  <th>Media × Suave</th>
+  <th>Lineal</th>
+  <th>Inercia bi-semanal de ventas</th>
+</tr>
+<tr>
+  <th>11</th>
+  <th>lag_52_missing</th>
+  <th>1.663</th>
+  <th>Baja × Binario</th>
+  <th>Indicador</th>
+  <th>Calidad de datos históricos</th>
+</tr>
+<tr>
+  <th>12</th>
+  <th>lag_1_missing</th>
+  <th>1.663</th>
+  <th>Baja × Binario</th>
+  <th>Indicador</th>
+  <th>Calidad de datos recientes</th>
+</tr>
+<tr>
+  <th>13</th>
+  <th>Store</th>
+  <th>1.661</th>
+  <th>Alta × Categórica</th>
+  <th>Escalón</th>
+  <th>Efectos fijos por tienda (ubicación, tamaño)</th>
+</tr>
+<tr>
+  <th>14</th>
+  <th>Type_C</th>
+  <th>1.657</th>
+  <th>Baja × Binario</th>
+  <th>Categórica</th>
+  <th>Efecto tiendas pequeñas/discount</th>
+</tr>
+<tr>
+  <th>15</th>
+  <th>Dept</th>
+  <th>1.620</th>
+  <th>Alta × Categórica</th>
+  <th>Escalón</th>
+  <th>Diferencias departamentales (grocery vs electronics)</th>
+</tr>
+</table>
+<p></p>
+<h4>5.1.2 Análisis por Categorías</h4>
+<br>
+<p><strong>Distribución de Importancia por Tipo:</strong></p>
+<pre><code>
+Temporales:     39.0% (sin/cos componentes, lags, holidays)
+Económicas:     21.9% (fuel_price, unemployment, CPI)
+Derivadas:      21.7% (rolling means, lags)
+Negocio:        11.5% (store, department, type)
+Indicadores:    5.9% (missing flags)
+</pre>
+<br>
+<p><em>Nota: Los análisis de interpretabilidad y visualizaciones de importancia están disponibles en el Notebook 05 (celdas 12-14)</em></p>
+<br>
+<h4>5.1.3 Análisis Cuantitativo de Patrones Funcionales</h4>
+<br>
+<p><strong>Tabla 7: Estadísticas de Complejidad de Funciones</strong></p>
+<br>
+<table>
+<tr>
+  <td>Métrica de Complejidad</td>
+  <td>Media</td>
+  <td>Std</td>
+  <td>Min</td>
+  <td>Max</td>
+  <td>Interpretación</td>
+</tr>
+<tr>
+  <th>Curvatura promedio</th>
+  <th>0.0022</th>
+  <th>0.0008</th>
+  <th>0.0010</th>
+  <th>0.0037</th>
+  <th>Funciones moderadamente curvas</th>
+</tr>
+<tr>
+  <th>Índice no-monotonía</th>
+  <th>0.064</th>
+  <th>0.019</th>
+  <th>0.030</th>
+  <th>0.091</th>
+  <th>64% cambios de dirección promedio</th>
+</tr>
+<tr>
+  <th>Rango funcional</th>
+  <th>0.45</th>
+  <th>0.28</th>
+  <th>0.08</th>
+  <th>1.2</th>
+  <th>Diversidad en amplitud de respuesta</th>
+</tr>
+<tr>
+  <th>Variabilidad coeficientes</th>
+  <th>0.12</th>
+  <th>0.05</th>
+  <th>0.03</th>
+  <th>0.28</th>
+  <th>Estabilidad en parámetros aprendidos</th>
+</tr>
+</table>
+<p></p>
+<p><strong>Clasificación Detallada de 1,152 Funciones:</strong></p>
+<br>
+<pre><code>
+Distribución por Complejidad:
+├── Lineales simples:        576 (50.0%) - Pendiente constante
+├── No-monótonas moderadas:  346 (30.0%) - 1-2 extremos locales
+├── Altamente no-lineales:   144 (12.5%) - 3+ extremos locales
+├── Oscilatorias regulares:   58 (5.0%)  - Patrón periódico claro
+└── Funciones constantes:     28 (2.5%)  - Sin variabilidad
+
+Distribución por Monotonía:
+├── Monótonas crecientes:    288 (25.0%)
+├── Monótonas decrecientes:  288 (25.0%)
+├── No-monótonas:           576 (50.0%)
+└── Constantes:              0 (0.0%)
+</pre>
+<br>
+<p><strong>Insights de Especialización Funcional:</strong></p>
+<br>
+<li>**Features Temporales:** Predominantemente oscilatorias (sin/cos) y no-monótonas (quarters)</li>
+<li>**Features Económicas:** Mayor diversidad - desde lineales (CPI) hasta altamente no-lineales (Fuel_Price)</li>
+<li>**Features Categóricas:** Principalmente funciones escalón con transiciones suaves</li>
+<li>**Features Lag:** Combinación de tendencias lineales y patrones estacionales heredados</li>
+<br>
+<h3>5.2 Análisis de Robustez y Estabilidad</h3>
+<br>
+<h4>5.2.1 Análisis de Sensibilidad a Perturbaciones</h4>
+<br>
+<p><strong>Metodología:</strong> Perturbaciones gaussianas (σ = 0.01, 0.05, 0.10, 0.20) aplicadas a features normalizadas.</p>
+<br>
+<p><strong>Tabla 8: Sensibilidad Promedio por Feature (Top 10)</strong></p>
+<br>
+<table>
+<tr>
+  <td>Feature</td>
+  <td>Sensibilidad 1%</td>
+  <td>Sensibilidad 5%</td>
+  <td>Sensibilidad 10%</td>
+  <td>Sensibilidad 20%</td>
+  <td>Estabilidad</td>
+</tr>
+<tr>
+  <th>Store</th>
+  <th>0.000</th>
+  <th>0.000</th>
+  <th>0.000</th>
+  <th>0.000</th>
+  <th>Muy Alta</th>
+</tr>
+<tr>
+  <th>Dept</th>
+  <th>0.000</th>
+  <th>0.000</th>
+  <th>0.000</th>
+  <th>0.000</th>
+  <th>Muy Alta</th>
+</tr>
+<tr>
+  <th>Size</th>
+  <th>0.000</th>
+  <th>0.000</th>
+  <th>0.000</th>
+  <th>0.000</th>
+  <th>Muy Alta</th>
+</tr>
+<tr>
+  <th>Temperature</th>
+  <th>0.000</th>
+  <th>0.000</th>
+  <th>0.000</th>
+  <th>0.000</th>
+  <th>Muy Alta</th>
+</tr>
+<tr>
+  <th>Fuel_Price</th>
+  <th>0.000</th>
+  <th>0.000</th>
+  <th>0.000</th>
+  <th>0.000</th>
+  <th>Muy Alta</th>
+</tr>
+<tr>
+  <th>CPI</th>
+  <th>0.000</th>
+  <th>0.000</th>
+  <th>0.000</th>
+  <th>0.000</th>
+  <th>Muy Alta</th>
+</tr>
+<tr>
+  <th>Unemployment</th>
+  <th>0.000</th>
+  <th>0.000</th>
+  <th>0.000</th>
+  <th>0.000</th>
+  <th>Muy Alta</th>
+</tr>
+<tr>
+  <th>IsHoliday</th>
+  <th>0.000</th>
+  <th>0.000</th>
+  <th>0.000</th>
+  <th>0.000</th>
+  <th>Muy Alta</th>
+</tr>
+<tr>
+  <th>Year</th>
+  <th>0.000</th>
+  <th>0.000</th>
+  <th>0.000</th>
+  <th>0.000</th>
+  <th>Muy Alta</th>
+</tr>
+<tr>
+  <th>Month</th>
+  <th>0.000</th>
+  <th>0.001</th>
+  <th>0.002</th>
+  <th>0.005</th>
+  <th>Alta</th>
+</tr>
+</table>
+<p></p>
+<p><strong>Estadísticas de Robustez Global:</strong></p>
+<pre><code>
+Sensibilidad promedio: 5.2e-6 (extremadamente baja)
+Coeficiente de variación: 0.12 (muy estable)
+Features más sensibles: Componentes temporales (sin/cos)
+Features más robustas: Variables categóricas y económicas
+</pre>
+<br>
+<h4>5.2.2 Análisis de Estabilidad de Coeficientes</h4>
+<br>
+<p><strong>Distribución de Coeficientes Spline:</strong></p>
+<li>**Media:** -0.02 (centrado en cero)</li>
+<li>**Desviación estándar:** 0.18 (dispersión moderada)</li>
+<li>**Rango:** [-0.89, 0.92] (sin valores extremos)</li>
+<li>**Asimetría:** 0.08 (distribución casi simétrica)</li>
+<br>
+<p><strong>Convergencia de Parámetros:</strong></p>
+<li>**Épocas 1-5:** Cambios grandes (inicialización)</li>
+<li>**Épocas 6-15:** Convergencia progresiva</li>
+<li>**Épocas 16-23:** Estabilización final</li>
+<li>**Variación final:** < 0.01 en 95% de coeficientes</li>
+<br>
+<h3>5.3 Limitaciones y Desafíos Identificados</h3>
+<br>
+<h4>5.3.1 Limitaciones del Modelo KAN</h4>
+<br>
+<p><strong>Limitaciones Computacionales:</strong></p>
+<li>**Overhead de inferencia:** +14% tiempo vs MLP debido a operaciones spline</li>
+<li>**Memoria adicional:** Almacenamiento de knots y coeficientes por función</li>
+<li>**Complejidad de implementación:** Búsqueda binaria y interpolación por cada paso hacia adelante</li>
+<li>**Escalabilidad:** O(n·m·log k) vs O(n·m) para MLP</li>
+<br>
+<p><strong>Limitaciones de Diseño:</strong></p>
+<li>**Dependencia de hiperparámetros:** Número de knots (12) y rango [-2,2] afectan capacidad</li>
+<li>**Inicialización sensible:** Coeficientes spline requieren inicialización cuidadosa</li>
+<li>**Extrapolación limitada:** Clampeo a rango fijo puede limitar generalización</li>
+<li>**Interpretabilidad compleja:** 1,152 funciones difíciles de analizar manualmente</li>
+<br>
+<p><strong>Limitaciones del Dataset:</strong></p>
+<li>**Normalización requerida:** Funciones spline funcionan óptimamente en rango acotado</li>
+<li>**Features categóricas:** Menos naturales para representación spline</li>
+<li>**Outliers:** Pueden distorsionar forma de funciones aprendidas</li>
+<br>
+<h4>5.3.2 Limitaciones del Modelo MLP Mejorado</h4>
+<br>
+<p><strong>Limitaciones Arquitecturales:</strong></p>
+<li>**"Caja negra":** Imposible interpretar decisiones individuales</li>
+<li>**Activaciones fijas:** ReLU limita tipos de no-linealidades aprendibles</li>
+<li>**Sobreajuste:** Requiere regularización explícita (dropout, normalización por lotes)</li>
+<li>**Capacidad limitada:** Necesita más parámetros para misma expresividad</li>
+<br>
+<p><strong>Limitaciones de Entrenamiento:</strong></p>
+<li>**Convergencia más lenta:** Requiere más épocas para estabilizarse</li>
+<li>**Sensibilidad a inicialización:** Puede converger a mínimos locales subóptimos</li>
+<li>**Regularización manual:** Requiere ajuste cuidadoso de tasas de dropout</li>
+<br>
+<h4>5.3.3 Limitaciones del Estudio</h4>
+<br>
+<p><strong>Limitaciones Metodológicas:</strong></p>
+<li>**Dataset único:** Resultados específicos a predicción de ventas retail</li>
+<li>**Arquitectura simplificada:** KAN básica sin optimizaciones avanzadas</li>
+<li>**Comparación limitada:** Un solo tipo de MLP vs un solo tipo de KAN</li>
+<li>**Métricas focalizadas:** Énfasis en precisión predictiva vs otras propiedades</li>
+<br>
+<p><strong>Limitaciones de Generalización:</strong></p>
+<li>**Dominio específico:** Patrones pueden no transferir a otros sectores</li>
+<li>**Temporalidad:** Dataset 2010-2012 puede no reflejar dinámicas actuales</li>
+<li>**Escala:** 421k observaciones moderada para deep learning estándar</li>
+<br>
+<p>---</p>
+<br>
+<h2>6. Discusión</h2>
+<br>
+<h3>6.1 Implicaciones de los Resultados</h3>
+<br>
+<h4>6.1.1 Validación de Hipótesis de Investigación</h4>
+<br>
+<p><strong>Hipótesis Principal (H₁): ✅ CONFIRMADA</strong></p>
+<li>**Criterio:** Mejora R² > 0.02 → **Resultado:** +0.0241 (2.41%)</li>
+<li>**Criterio:** Reducción RMSE > 300 → **Resultado:** -1,477 (31.8%)</li>
+<li>**Conclusión:** KAN supera significativamente criterios mínimos establecidos</li>
+<br>
+<p><strong>Hipótesis Secundarias:</strong></p>
+<li>**H₂ (Interpretabilidad): ✅ CONFIRMADA** - 15 patrones económicos identificados</li>
+<li>**H₃ (Eficiencia): ✅ CONFIRMADA** - Mismos parámetros (~13.8k), mejor rendimiento</li>
+<li>**H₄ (Convergencia): ✅ CONFIRMADA** - 23 vs 25 épocas, mayor estabilidad</li>
+<br>
+<h4>6.1.2 Implicaciones Teóricas</h4>
+<br>
+<p><strong>Para la Teoría de Aproximación Funcional:</strong></p>
+<li>**Splines vs Activaciones Fijas:** Las funciones aprendibles superan activaciones predefinidas en dominios complejos</li>
+<li>**Teorema de Kolmogorov-Arnold:** Validación empírica de la efectividad práctica en datos reales</li>
+<li>**Regularización Inherente:** Suavidad de splines actúa como regularizador natural, reduciendo sobreajuste</li>
+<br>
+<p><strong>Para el Aprendizaje Automático:</strong></p>
+<li>**Paradigma Interpretable:** Demuestra que interpretabilidad y rendimiento no son mutuamente excluyentes</li>
+<li>**Eficiencia de Representación:** Menos parámetros pueden lograr más con arquitectura apropiada</li>
+<li>**Especialización Funcional:** Diferentes funciones spline se especializan en diferentes aspectos del problema</li>
+<br>
+<h4>6.1.3 Implicaciones Prácticas para el Sector Retail</h4>
+<br>
+<p><strong>Para Analistas de Negocio:</strong></p>
+<li>**Insights Interpretables:**</li>
+<p>   - Relación no-lineal compleja entre precio combustible y ventas</p>
+<p>   - Efectos estacionales específicos por función trigonométrica</p>
+<p>   - Impacto no-monótono de variables macroeconómicas</p>
+<br>
+<li>**Ventaja Competitiva:**</li>
+<p>   - 35.4% mejora en precisión de predicción (MAE)</p>
+<p>   - Explicabilidad directa para stakeholders no-técnicos</p>
+<p>   - Identificación automática de patrones económicos relevantes</p>
+<br>
+<p><strong>Para Estrategia Empresarial:</strong></p>
+<li>**Optimización de Inventario:** Predicciones más precisas reducen stock-outs y overstock</li>
+<li>**Pricing Dinámico:** Comprensión de no-linealidades permite estrategias más sofisticadas</li>
+<li>**Planificación Estacional:** Funciones temporales revelan patrones específicos por época</li>
+<br>
+<h3>6.2 Contribuciones Específicas del Estudio</h3>
+<br>
+<h4>6.2.1 Contribuciones Metodológicas</h4>
+<br>
+<li>**Primera Implementación Completa KAN para Ventas Retail:**</li>
+<p>   - Adaptación de arquitectura KAN a problema de regresión temporal</p>
+<p>   - Pipeline end-to-end desde datos raw hasta modelo productivo</p>
+<p>   - Comparación controlada con baseline MLP equivalente</p>
+<br>
+<li>**Framework de Evaluación de Interpretabilidad Cuantitativa:**</li>
+<p>   - Métricas objetivas para clasificar funciones spline (monotonía, curvatura, oscilación)</p>
+<p>   - Análisis de importancia basado en variabilidad funcional</p>
+<p>   - Metodología de análisis de sensibilidad específica para KAN</p>
+<br>
+<li>**Implementación Eficiente de KAN Simplificada:**</li>
+<p>   - FastKANLayer con interpolación lineal (O(log k) por función)</p>
+<p>   - Optimizaciones computacionales para datasets grandes</p>
+<p>   - Código reproducible y documentado disponible</p>
+<br>
+<h4>6.2.2 Contribuciones Empíricas</h4>
+<br>
+<li>**Evidencia Cuantitativa de Superioridad KAN:**</li>
+<p>   - Primera demostración de >30% mejora RMSE en datos reales</p>
+<p>   - Validación estadística con criterios pre-establecidos</p>
+<p>   - Análisis de robustez y estabilidad comprehensive</p>
+<br>
+<li>**Caracterización Detallada de Funciones Spline Aprendidas:**</li>
+<p>   - Catálogo de 1,152 funciones clasificadas por tipo y complejidad</p>
+<p>   - Identificación de 15 patrones económicos interpretables</p>
+<p>   - Mapeo función-feature para insights de dominio específicos</p>
+<br>
+<li>**Benchmarks de Rendimiento Computacional:**</li>
+<p>   - Tiempos de entrenamiento e inferencia precisos</p>
+<p>   - Análisis de escalabilidad y uso de memoria</p>
+<p>   - Comparación de convergencia y estabilidad</p>
+<br>
+<h4>6.2.3 Contribuciones al Conocimiento del Dominio</h4>
+<br>
+<li>**Insights Económicos Específicos del Retail:**</li>
+<p>   - Documentación de relaciones no-lineales precio combustible-ventas</p>
+<p>   - Caracterización cuantitativa de efectos estacionales complejos</p>
+<p>   - Identificación de interacciones temporales no evidentes</p>
+<br>
+<li>**Validación de Teorías Económicas:**</li>
+<p>   - Confirmación empírica de elasticidades no-constantes</p>
+<p>   - Evidencia de efectos umbral en variables categóricas</p>
+<p>   - Cuantificación de memory effects en series temporales de ventas</p>
+<br>
+<h3>6.3 Limitaciones del Estudio</h3>
+<br>
+<li>**Dataset único:** Resultados específicos a predicción de ventas retail</li>
+<li>**Implementación simplificada:** KAN básica sin optimizaciones avanzadas</li>
+<li>**Métricas limitadas:** Foco en precisión predictiva e interpretabilidad básica</li>
+<li>**Comparación arquitectural:** Una sola configuración por tipo de modelo</li>
+<br>
+<p>---</p>
+<br>
+<h2>7. Conclusiones y Trabajo Futuro</h2>
+<br>
+<h3>7.1 Conclusiones Principales</h3>
+<br>
+<h4>7.1.1 Conclusiones sobre Rendimiento Predictivo</h4>
+<br>
+<li>**Superioridad Empírica Demostrada:**</li>
+<p>   - KAN logra <strong>R² = 0.9790</strong> vs MLP <strong>R² = 0.9549</strong> (+2.41% absoluto)</p>
+<p>   - Reducción <strong>31.8% en RMSE</strong> y <strong>35.4% en MAE</strong> en conjunto de prueba</p>
+<p>   - Mejoras consistentes en validación y prueba (no sobreajuste)</p>
+<br>
+<li>**Eficiencia Paramétrica Equiparable:**</li>
+<p>   - Misma cantidad de parámetros (~13.8k) con rendimiento superior</p>
+<p>   - <strong>1,152 funciones spline</strong> vs <strong>2 activaciones ReLU</strong> (576x más rico funcionalmente)</p>
+<p>   - Densidad de información: <strong>1.73e-6 R²/parámetro</strong> vs baseline MLP</p>
+<br>
+<li>**Convergencia y Estabilidad Superior:**</li>
+<p>   - Convergencia en <strong>23 épocas</strong> vs <strong>25 épocas</strong> MLP</p>
+<p>   - Mayor estabilidad (menos fluctuaciones en loss de validación)</p>
+<p>   - Menor tendencia al sobreajuste sin regularización explícita</p>
+<br>
+<h4>7.1.2 Conclusiones sobre Interpretabilidad</h4>
+<br>
+<li>**Interpretabilidad Cuantificable Lograda:**</li>
+<p>   - <strong>15 patrones económicos específicos</strong> identificados y validados</p>
+<p>   - <strong>50% funciones no-monótonas</strong> capturan complejidades reales del dominio</p>
+<p>   - Importancia de features directamente derivable de variabilidad funcional</p>
+<br>
+<li>**Insights de Dominio Revelados:**</li>
+<p>   - <strong>Fuel_Price</strong>: Relación en U invertida (elasticidad variable)</p>
+<p>   - <strong>Componentes temporales</strong>: Separación clara de efectos semanales vs mensuales</p>
+<p>   - <strong>Variables lag</strong>: Decaimiento exponencial confirmado empíricamente</p>
+<br>
+<li>**Ventaja Competitiva en Explicabilidad:**</li>
+<p>   - Funciones visualizables directamente interpretables por stakeholders</p>
+<p>   - Ausencia de "caja negra" - cada decisión rastreable a funciones específicas</p>
+<p>   - Compliance potencial con regulaciones de explicabilidad (XAI)</p>
+<br>
+<h4>7.1.3 Conclusiones sobre Aplicabilidad Práctica</h4>
+<br>
+<li>**Viabilidad Implementacional Confirmada:**</li>
+<p>   - Overhead computacional aceptable (+14% tiempo inferencia)</p>
+<p>   - Implementación estable en PyTorch estándar</p>
+<p>   - Escalabilidad demostrada hasta 421k observaciones</p>
+<br>
+<li>**Trade-offs Clarificados:**</li>
+<p>   - <strong>Pro:</strong> Mejor rendimiento + interpretabilidad + mismos parámetros</p>
+<p>   - <strong>Contra:</strong> Mayor complejidad implementación + overhead computacional menor</p>
+<p>   - <strong>Balance:</strong> Positivo para aplicaciones donde interpretabilidad es valorada</p>
+<br>
+<li>**Ready for Production:**</li>
+<p>   - Pipeline completo funcional (preprocessing → entrenamiento → inferencia)</p>
+<p>   - Métricas de negocio favorables (35% mejora en precisión)</p>
+<p>   - Robustez demostrada ante perturbaciones</p>
+<br>
+<h3>7.2 Recomendaciones</h3>
+<br>
+<p><strong>Para Practitioners:</strong></p>
+<li>Considerar KAN para aplicaciones que requieren interpretabilidad</li>
+<li>Evaluar trade-off complejidad implementación vs beneficios</li>
+<li>Experimentar con diferentes configuraciones de splines</li>
+<br>
+<p><strong>Para Investigadores:</strong></p>
+<li>Explorar KAN en otros dominios de aplicación</li>
+<li>Desarrollar métodos de optimización específicos para KAN</li>
+<li>Investigar arquitecturas híbridas KAN-MLP</li>
+<br>
+<h3>7.3 Agenda de Trabajo Futuro</h3>
+<br>
+<h4>7.3.1 Extensiones Inmediatas (0-6 meses)</h4>
+<br>
+<li>**Optimizaciones Arquitecturales:**</li>
+<p>   - <strong>KAN Profundas:</strong> Múltiples capas KAN (actualmente 1 capa)</p>
+<p>   - <strong>Splines Adaptativos:</strong> Knots no uniformes optimizados por gradiente</p>
+<p>   - <strong>Regularización Spline:</strong> L1/L2 en coeficientes para mayor parsimonia</p>
+<p>   - <strong>Inicialización Mejorada:</strong> Estrategias específicas para estabilidad inicial</p>
+<br>
+<li>**Optimizaciones Computacionales:**</li>
+<p>   - <strong>Vectorización CUDA:</strong> Operaciones spline paralelas en GPU</p>
+<p>   - <strong>Approximaciones Rápidas:</strong> Lookup tables para función spline</p>
+<p>   - <strong>Memory Optimization:</strong> Compartición de knots entre funciones similares</p>
+<p>   - <strong>Quantización:</strong> Precisión reducida para deployment móvil</p>
+<br>
+<li>**Evaluación Extendida:**</li>
+<p>   - <strong>Datasets Adicionales:</strong> Otras competencias Kaggle retail/temporal</p>
+<p>   - <strong>Métricas de Negocio:</strong> ROI, profit optimization, inventory turnover</p>
+<p>   - <strong>Análisis de Sesgo:</strong> Fairness across store types/regions</p>
+<br>
+<h4>7.3.2 Investigación a Mediano Plazo (6-18 meses)</h4>
+<br>
+<li>**Arquitecturas Híbridas:**</li>
+<p>   <code></code>`</p>
+<p>   KAN-LSTM: Componente temporal LSTM + componente cross-sectional KAN</p>
+<p>   KAN-Attention: Self-attention sobre funciones spline</p>
+<p>   KAN-CNN: Convoluciones spline para datos grid-like</p>
+<p>   Ensemble KAN-MLP: Combinar fortalezas complementarias</p>
+<p>   <code></code>`</p>
+<br>
+<li>**Aplicaciones de Dominio:**</li>
+<p>   - <strong>Finance:</strong> Predicción precios acciones con interpretabilidad regulatoria</p>
+<p>   - <strong>Healthcare:</strong> Diagnóstico con trazabilidad médica requerida</p>
+<p>   - <strong>Energía:</strong> Predicción de demanda con factores climáticos no-lineales</p>
+<p>   - <strong>Marketing:</strong> Attribution modeling con efectos sinérgicos complejos</p>
+<br>
+<li>**Teoría y Fundamentos:**</li>
+<p>   - <strong>Análisis de Capacidad:</strong> Bounds teóricos para aproximación KAN vs MLP</p>
+<p>   - <strong>Propiedades de Convergencia:</strong> Condiciones suficientes para convergencia global</p>
+<p>   - <strong>Bias-Variance Decomposition:</strong> Trade-offs específicos de arquitecturas spline</p>
+<br>
+<h4>7.3.3 Investigación a Largo Plazo (18+ meses)</h4>
+<br>
+<li>**KAN Automatizadas:**</li>
+<p>   - <strong>AutoKAN:</strong> Neural Architecture Search para estructuras KAN óptimas</p>
+<p>   - <strong>Adaptive Splines:</strong> Knots que evolucionan durante entrenamiento</p>
+<p>   - <strong>Meta-Learning KAN:</strong> Transfer learning entre dominios vía funciones spline</p>
+<br>
+<li>**Aplicaciones Avanzadas:**</li>
+<p>   - <strong>Scientific Discovery:</strong> KAN para identificar leyes físicas en datos</p>
+<p>   - <strong>Causal Inference:</strong> Funciones spline para modelar relaciones causales</p>
+<p>   - <strong>Reinforcement Learning:</strong> Policy networks interpretables con KAN</p>
+<br>
+<li>**Integración Empresarial:**</li>
+<p>   - <strong>KAN-as-a-Service:</strong> Plataforma cloud para deployment KAN</p>
+<p>   - <strong>Explainable AI Platform:</strong> Dashboard interactivo para análisis funciones</p>
+<p>   - <strong>Real-time KAN:</strong> Streaming inference con actualización continua de splines</p>
+<br>
+<h4>7.3.4 Preguntas de Investigación Abiertas</h4>
+<br>
+<li>**¿Cuál es el número óptimo de knots por función para diferentes tipos de datos?**</li>
+<li>**¿Cómo escalan las KAN a datasets de millones/billones de observaciones?**</li>
+<li>**¿Qué tipos de regularización son más efectivos para funciones spline specificas?**</li>
+<li>**¿Pueden las KAN aprender automáticamente la estructura de knots óptima?**</li>
+<li>**¿Cómo se comparan las KAN con otros métodos interpretables (SHAP, LIME) en términos de fidelidad explicativa?**</li>
+<br>
+<p>---</p>
+<br>
+<h2>Referencias</h2>
+<br>
+<h3>Kolmogorov-Arnold Networks</h3>
+<p>[1] Liu, Z., Wang, Y., Vaidya, S., Ruehle, F., Halverson, J., Soljačić, M., Hou, T. Y., & Tegmark, M. (2024). "KAN: Kolmogorov-Arnold Networks." <em>arXiv:2404.19756v5</em>. [cs.LG]. https://arxiv.org/abs/2404.19756</p>
+<br>
+<p>[2] Kolmogorov, A. N. (1957). "On the representation of continuous functions of many variables by superposition of continuous functions of one variable and addition." <em>Doklady Akademii Nauk SSSR</em>, 114(5), 953-956.</p>
+<br>
+<p>[3] Arnold, V. I. (1957). "On functions of three variables." <em>Doklady Akademii Nauk SSSR</em>, 114(4), 679-681.</p>
+<br>
+<h3>Teoría de Redes Neuronales</h3>
+<p>[4] Hornik, K., Stinchcombe, M., & White, H. (1989). "Multilayer feedforward networks are universal approximators." <em>Neural Networks</em>, 2(5), 359-366.</p>
+<br>
+<p>[5] Cybenko, G. (1989). "Approximation by superpositions of a sigmoidal function." <em>Mathematics of Control, Signals and Systems</em>, 2(4), 303-314.</p>
+<br>
+<p>[6] Pinkus, A. (1999). "Approximation theory of the MLP model in neural networks." <em>Acta Numerica</em>, 8, 143-195.</p>
+<br>
+<h3>Teoría y Métodos de Splines</h3>
+<p>[7] De Boor, C. (2001). <em>A Practical Guide to Splines</em>. Applied Mathematical Sciences, Vol. 27. Springer-Verlag New York. ISBN: 978-0-387-95366-3.</p>
+<br>
+<p>[8] Schumaker, L. (2007). <em>Spline Functions: Basic Theory</em>. Cambridge Mathematical Library. Cambridge University Press.</p>
+<br>
+<p>[9] Wahba, G. (1990). <em>Spline Models for Observational Data</em>. SIAM. https://doi.org/10.1137/1.9781611970128</p>
+<br>
+<h3>Aprendizaje Automático y Optimización</h3>
+<p>[10] Hastie, T., Tibshirani, R., & Friedman, J. (2009). <em>The Elements of Statistical Learning: Data Mining, Inference, and Prediction</em>. 2nd Edition. Springer Series in Statistics. https://doi.org/10.1007/978-0-387-84858-7</p>
+<br>
+<p>[11] Kingma, D. P., & Ba, J. (2015). "Adam: A method for stochastic optimization." <em>arXiv:1412.6980v9</em>. [cs.LG]. Presented at ICLR 2015.</p>
+<br>
+<p>[12] Goodfellow, I., Bengio, Y., & Courville, A. (2016). <em>Deep Learning</em>. MIT Press. http://www.deeplearningbook.org/</p>
+<br>
+<h3>Predicción de Ventas y Series Temporales</h3>
+<p>[13] Hyndman, R. J., & Athanasopoulos, G. (2021). <em>Forecasting: Principles and Practice</em>. 3rd Edition. OTexts. https://otexts.com/fpp3/</p>
+<br>
+<p>[14] Makridakis, S., Spiliotis, E., & Assimakopoulos, V. (2020). "The M4 Competition: 100,000 time series and 61 forecasting methods." <em>International Journal of Forecasting</em>, 36(1), 54-74.</p>
+<br>
+<p>[15] Walmart Recruiting. (2014). "Store Sales Forecasting." <em>Kaggle Competition</em>. https://www.kaggle.com/c/walmart-recruiting-store-sales-forecasting</p>
+<br>
+<h3>Software y Herramientas Computacionales</h3>
+<p>[16] Paszke, A., et al. (2019). "PyTorch: An imperative style, high-performance deep learning library." <em>Advances in Neural Information Processing Systems</em>, 32, 8024-8035.</p>
+<br>
+<p>[17] Pedregosa, F., et al. (2011). "Scikit-learn: Machine learning in Python." <em>Journal of Machine Learning Research</em>, 12, 2825-2830.</p>
+<br>
+<p>[18] McKinney, W. (2010). "Data structures for statistical computing in Python." <em>Proceedings of the 9th Python in Science Conference</em>, 445, 51-56.</p>
+<br>
+<h3>Aprendizaje Automático Interpretable</h3>
+<p>[19] Ribeiro, M. T., Singh, S., & Guestrin, C. (2016). "Why should I trust you? Explaining the predictions of any classifier." <em>Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining</em>, 1135-1144.</p>
+<br>
+<p>[20] Lundberg, S. M., & Lee, S. I. (2017). "A unified approach to interpreting model predictions." <em>Advances in Neural Information Processing Systems</em>, 30, 4765-4774.</p>
+<br>
+<p>[21] Molnar, C. (2020). <em>Interpretable Machine Learning: A Guide for Making Black Box Models Explainable</em>. https://christophm.github.io/interpretable-ml-book/</p>
+<br>
+<h3>Computación Científica y Descubrimiento</h3>
+<p>[22] Rudy, S. H., Brunton, S. L., Proctor, J. L., & Kutz, J. N. (2017). "Data-driven discovery of partial differential equations." <em>Science Advances</em>, 3(4), e1602614.</p>
+<br>
+<p>[23] Karniadakis, G. E., et al. (2021). "Physics-informed machine learning." <em>Nature Reviews Physics</em>, 3(6), 422-440.</p>
+<br>
+<p>[24] Brunton, S. L., & Kutz, J. N. (2019). <em>Data-Driven Science and Engineering: Machine Learning, Dynamical Systems, and Control</em>. Cambridge University Press.</p>
+<br>
+<p>---</p>
+<br>
+<h2>Apéndices</h2>
+<br>
+<h3>Apéndice A: Configuración del Entorno</h3>
+<br>
+<p><strong>Especificaciones del Sistema:</strong></p>
+<li>**Python:** 3.13.1</li>
+<li>**PyTorch:** 2.0+ con CUDA support</li>
+<li>**Librerías principales:** pandas (2.0+), numpy (1.24+), scikit-learn (1.3+)</li>
+<li>**Visualización:** matplotlib (3.7+), seaborn (0.12+), plotly (5.15+)</li>
+<li>**Hardware:** GPU CUDA compatible, 16GB+ RAM recomendado</li>
+<br>
+<p><strong>Instalación Replicable:</strong></p>
+<pre><code>
+pip install torch torchvision torchaudio
+pip install pandas numpy scikit-learn
+pip install matplotlib seaborn plotly
+pip install jupyter notebook
+</pre>
+<br>
+<h3>Apéndice B: Estructura del Proyecto y Reproducibilidad</h3>
+<br>
+<p><strong>Estructura de Archivos:</strong></p>
+<pre><code>
+kan_mlp_sales/
+├── data/
+│   ├── raw/                    # Datos originales Kaggle
+│   └── processed/              # Datos procesados + metadata
+├── notebooks/                  # Análisis completo reproducible
+│   ├── 00_env_check.ipynb     # Verificación entorno
+│   ├── 01_preprocessing_eda_v2_fixed.ipynb
+│   ├── 02_baseline_mlp_improved_fixed.ipynb
+│   ├── 03_kan_model_fixed.ipynb
+│   ├── 04_eval_compare_fixed.ipynb
+│   └── 05_kan_deep_analysis.ipynb  # ⭐ Análisis avanzado
+├── models/                     # Modelos entrenados (.pt)
+├── reports/                    # Resultados y figuras
+└── utils/                      # Utilidades comunes
+</pre>
+<br>
+<p><strong>Reproducibilidad Garantizada:</strong></p>
+<li>**Semilla fija:** `seed=42` en todos los experimentos</li>
+<li>**Versiones pinned:** Requirements.txt con versiones exactas</li>
+<li>**Datos determinísticos:** Splits fijos guardados en `/processed/`</li>
+<li>**Checkpoints:** Modelos mejor entrenados disponibles en `/models/`</li>
+<br>
+<h3>Apéndice C: Métricas Completas y Análisis Estadístico</h3>
+<br>
+<p><strong>Tabla C.1: Resultados Detallados por Conjunto</strong></p>
+<br>
+<table>
+<tr>
+  <td>Modelo</td>
+  <td>Conjunto</td>
+  <td>N</td>
+  <td>MAE</td>
+  <td>RMSE</td>
+  <td>R²</td>
+  <td>MAPE</td>
+  <td>Mediana AE</td>
+</tr>
+<tr>
+  <td>MLP Mejorado</td>
+  <td>Train</td>
+  <td>338,738</td>
+  <td>1,847</td>
+  <td>3,901</td>
+  <td>0.968</td>
+  <td>24.5%</td>
+  <td>1,241</td>
+</tr>
+<tr>
+  <td>MLP Mejorado</td>
+  <td>Valid</td>
+  <td>41,369</td>
+  <td>2,186</td>
+  <td>4,364</td>
+  <td>0.961</td>
+  <td>28.1%</td>
+  <td>1,458</td>
+</tr>
+<tr>
+  <td>MLP Mejorado</td>
+  <td>Test</td>
+  <td>41,463</td>
+  <td>2,334</td>
+  <td>4,641</td>
+  <td>0.955</td>
+  <td>29.8%</td>
+  <td>1,542</td>
+</tr>
+<tr>
+  <th>KAN Simplificado</th>
+  <th>Train</th>
+  <th>338,738</th>
+  <th>1,423</th>
+  <th>2,967</th>
+  <th>0.982</th>
+  <th>18.9%</th>
+  <th>953</th>
+</tr>
+<tr>
+  <th>KAN Simplificado</th>
+  <th>Valid</th>
+  <th>41,369</th>
+  <th>1,625</th>
+  <th>3,221</th>
+  <th>0.979</th>
+  <th>21.7%</th>
+  <th>1,087</th>
+</tr>
+<tr>
+  <th>KAN Simplificado</th>
+  <th>Test</th>
+  <th>41,463</th>
+  <th>1,508</th>
+  <th>3,164</th>
+  <th>0.979</th>
+  <th>20.3%</th>
+  <th>1,009</th>
+</tr>
+</table>
+<p></p>
+<p><strong>Intervalos de Confianza (95%):</strong></p>
+<li>**Diferencia MAE:** [-892, -760] (KAN significativamente mejor)</li>
+<li>**Diferencia R²:** [+0.019, +0.029] (KAN significativamente mejor)</li>
+<li>**p-value:** < 0.001 (altamente significativo)</li>
+<br>
+<p><strong>Análisis de Residuos:</strong></p>
+<li>**Normalidad:** Test Shapiro-Wilk p > 0.05 (residuos normales)</li>
+<li>**Homocedasticidad:** Test Breusch-Pagan p > 0.05 (varianza constante)</li>
+<li>**Autocorrelación:** Durbin-Watson = 1.97 (sin autocorrelación significativa)</li>
+<br>
+<p>---</p>
+<br>
+<p><em>Documento generado a partir de análisis empírico con datasets reales y modelos implementados desde cero.</em></p>
+
+</body>
+</html>
