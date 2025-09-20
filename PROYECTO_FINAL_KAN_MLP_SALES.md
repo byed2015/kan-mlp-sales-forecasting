@@ -364,13 +364,7 @@ Ventajas:
 Robustez a outliers: Comportamiento cuadrático cerca de 0, lineal en extremos
 Gradientes estables: No explota con errores grandes
 Ideal para ventas: Maneja tanto errores pequeños como grandes apropiadamente
-KAN: MSELoss
 
-Ventajas:
-
-Simplicidad: Permite que las splines aprendan patrones sin bias adicional
-Sensibilidad: Penaliza fuertemente errores grandes, ideal para KAN
-Diferenciabilidad: Gradientes suaves para optimización de splines
 
 #### 3.2.2 Modelo KAN Simplificado
 ```python
@@ -390,6 +384,13 @@ class SimplifiedKANNet(nn.Module):
         # Knots por función: 12
         # Coeficientes aprendibles: 1,152 * 12 = 13,824
 ```
+KAN: MSELoss
+
+Ventajas:
+
+Simplicidad: Permite que las splines aprendan patrones sin bias adicional
+Sensibilidad: Penaliza fuertemente errores grandes, ideal para KAN
+Diferenciabilidad: Gradientes suaves para optimización de splines
 
 🎯 Justificación de Decisiones:
 
