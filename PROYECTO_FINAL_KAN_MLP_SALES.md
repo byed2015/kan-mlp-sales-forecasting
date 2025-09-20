@@ -338,6 +338,39 @@ class ImprovedMLP(nn.Module):
         )
         # Total parámetros: 13,441
 ```
+🎯 Justificación de Decisiones:
+
+¿Por qué 3 capas ocultas (256→128→64)?
+
+Capacidad progresiva: Reducción gradual permite extracción jerárquica de características
+Regla empírica: Para 36 características, comenzar con ~7x (256) es óptimo
+Evita overfitting: Reducción controlada previene memorización de datos
+¿Por qué GELU en lugar de ReLU?
+
+Suavidad: GELU es derivable en todos los puntos (mejor gradientes)
+Mejor rendimiento: Estudios muestran 2-3% mejora en tareas de regresión
+Estabilidad: Menos "neurona muerta" que ReLU
+¿Por qué LayerNorm en lugar de BatchNorm?
+
+Independiente del batch: Funciona mejor con batch sizes variables
+Estabilidad numérica: Menos sensible a cambios en distribución
+Mejor para secuencias temporales (nuestros datos tienen componente temporal)
+
+📉 Funciones de Pérdida y su Contribución
+MLP: SmoothL1Loss (Huber Loss)
+
+Ventajas:
+
+Robustez a outliers: Comportamiento cuadrático cerca de 0, lineal en extremos
+Gradientes estables: No explota con errores grandes
+Ideal para ventas: Maneja tanto errores pequeños como grandes apropiadamente
+KAN: MSELoss
+
+Ventajas:
+
+Simplicidad: Permite que las splines aprendan patrones sin bias adicional
+Sensibilidad: Penaliza fuertemente errores grandes, ideal para KAN
+Diferenciabilidad: Gradientes suaves para optimización de splines
 
 #### 3.2.2 Modelo KAN Simplificado
 ```python
@@ -357,6 +390,24 @@ class SimplifiedKANNet(nn.Module):
         # Knots por función: 12
         # Coeficientes aprendibles: 1,152 * 12 = 13,824
 ```
+
+🎯 Justificación de Decisiones:
+
+¿Por qué 2 capas KAN (64, 32)?
+
+Complejidad controlada: Menos capas pero más expresivas por splines
+Interpretabilidad: Pocas capas facilitan análisis de funciones aprendidas
+Eficiencia computacional: Balance entre capacidad y velocidad
+¿Por qué 12 knots por spline?
+
+Flexibilidad: 12 puntos permiten capturar patrones complejos
+No sobreajuste: Ni muy pocos (rigidez) ni muchos (overfitting)
+Literatura: Rango óptimo 8-16 knots para regresión
+¿Por qué Tanh como activación?
+
+Rango acotado: Salida en [-1,1] estabiliza entrenamiento
+Suavidad: Derivadas continuas para mejor optimización
+Compatibilidad: Funciona bien con interpolación de splines
 
 **Comparación Arquitectural:**
 | Aspecto | MLP Mejorado | KAN Simplificado |
