@@ -11,6 +11,8 @@
 
 Presentamos una comparación empírica comprensiva entre las Redes Kolmogorov-Arnold (KAN) y los Perceptrones Multicapa (MLP) tradicionales para la predicción de ventas semanales usando el dataset completo de Walmart Sales. Las KAN, introducidas por Liu et al. (2024), reemplazan las funciones de activación fijas con funciones spline aprendibles en las conexiones, prometiendo interpretabilidad y eficiencia mejoradas. Implementamos ambas arquitecturas desde cero y las evaluamos en un problema de regresión del mundo real con 421,570 observaciones.
 
+<img width="1902" height="1289" alt="image" src="https://github.com/user-attachments/assets/28f6f53f-58c1-44af-9a22-71ad68b2a2c7" />
+
 Nuestros resultados demuestran la superioridad empírica de las KAN: el modelo KAN alcanza un **R² = 0.9790** en el conjunto de prueba comparado con **R² = 0.9549** para el MLP mejorado, representando una **mejora de 2.4 puntos porcentuales** en poder explicativo. La arquitectura KAN logra un RMSE 31.8% menor (3,164 vs 4,641) y un MAE 35.4% menor (1,508 vs 2,334) mientras mantiene un conteo de parámetros similar (13,889 vs 13,441). Críticamente, las funciones spline aprendidas revelan patrones económicos interpretables: efectos no-monotónicos del precio del combustible, dependencias estacionales complejas, y comportamientos de umbral en variables categóricas.
 
 **Palabras Clave:** Redes Kolmogorov-Arnold, Redes Neuronales, Predicción de Ventas, Aprendizaje Automático Interpretable, Funciones Spline
